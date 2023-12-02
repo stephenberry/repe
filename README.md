@@ -1,5 +1,7 @@
 # REPE
 
+> This specification is under ACTIVE DEVELOPMENT and should be considered UNSTABLE.
+
 REPE is a fast and simple RPC protocol for the binary [BEVE](https://github.com/stephenberry/beve) specification.
 
 - High performance
