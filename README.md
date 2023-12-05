@@ -25,7 +25,7 @@ The header is sent as an array of `[version, error, notification, method, id]`. 
 ```c++
 // C++ pseudocode (serialized as a BEVE array)
 struct header {
-  uint8_t version = 0; // the RPCZ version
+  uint8_t version = 0; // the REPE version
   bool error = false;
   bool notification = false; // whether this RPC is a notification (no response returned)
   std::string method = ""; // the RPC method to call
