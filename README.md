@@ -12,11 +12,11 @@ REPE is a fast and simple RPC protocol for the binary [BEVE](https://github.com/
 
 - The header and body are separated with a unique delimiter to allow parsers to verify a header and run logic prior to parsing any of the body.
 
-# Request/Response
+# Request/Response | Message
 
 Requests and responses use the exact same data layout. There is no distinction between them.
 
-Layout: `Header | Delimiter | Parameters | Delimiter | Body | Delimiter`
+Layout: `Header | Delimiter | Body | Delimiter`
 
 # Header
 
@@ -63,11 +63,9 @@ The BEVE data delimiter is used to separate the header, parameters, and the body
 0b00000'110 // delimiter in binary
 ```
 
-# Parameters
-
-The parameters may be any BEVE value. For example, it could be an object, array, a single number, or null. Response parameters will typically be null.
-
 # Body
+
+For a request call, the body contains the input parameters. For a response, the body is the result of the call.
 
 `VALUE` or `ERROR`
 
@@ -77,7 +75,7 @@ The body may be any BEVE value. For example, it could be an object, array, or si
 
 ## Error
 
-An error requires an error code (`uint32_t`) and a string message. Additional BEVE data may be returned.
+An error requires an error code (`uint32_t`) and a string message. Additional BEVE data may be returned. The serialization format must be an array.
 
 ```c++
 template <class T>
@@ -85,7 +83,7 @@ struct error_t
 {
   uint32_t code = 0;
   std::string message = "";
-  T data{};
+  T& data;
 };
 // or
 template <>
