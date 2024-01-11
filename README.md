@@ -20,6 +20,8 @@ BEVE Layout: `Header | Delimiter | Optional User Data | Delimiter | Body | Delim
 
 JSON Layout: `Header array | Optional User Data | Body value`
 
+- Where JSON elements are delimited by new lines `\n`
+
 # Header
 
 The header is sent as an array of `[version, error, notification, user_data, method, id]`. No elements are optional, but the `id`  may be `null`.
