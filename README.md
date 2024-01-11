@@ -16,24 +16,23 @@ REPE is a fast and simple RPC protocol for the binary [BEVE](https://github.com/
 
 Requests and responses use the exact same data layout. There is no distinction between them.
 
-BEVE Layout: `Header | Delimiter | Body | Delimiter`
+BEVE Layout: `Header | Delimiter | Optional User Data | Delimiter | Body | Delimiter`
 
-JSON Layout: `Header array | Body value`
+JSON Layout: `Header array | Optional User Data | Body value`
 
 # Header
 
-The header is sent as an array of `[version, error, notification, method, id, optional_user_data]`. Only `optional_user_data` is optional, but the `id`  may be `null`.
+The header is sent as an array of `[version, error, notification, user_data, method, id]`. No elements are optional, but the `id`  may be `null`.
 
 ```c++
 // C++ pseudocode
-template <class UserData = void>
 struct header {
   uint8_t version = 0; // the REPE version
   uint8_t error = 0; // 0 denotes no error
   uint8_t notification = 0; // whether this RPC is a notification (no response returned)
+  uint8_t user_data = 0; // whether this RPC contains user data
   std::string method = ""; // the RPC method to call
   std::variant<null_t, uint64_t, std::string> id{}; // an identifier
-  UserData& user_data;
 };
 ```
 
@@ -51,6 +50,10 @@ The `version` must be a `uint8_t`.
 
 `notification` is a single byte `uint8_t`. A value of 1 represents a notification. A notification does not expect a response.
 
+### User Data
+
+`user_data` is a single byte `uint8_t`. A value of 1 represents user data being present.
+
 ### Method
 
 `method` must be a string type of UTF-8 characters.
@@ -58,10 +61,6 @@ The `version` must be a `uint8_t`.
 ### ID
 
 `id` is either null, a `uint64_t`, or a `string`.
-
-### Optional User Data
-
-Optional user data must conform to a BEVE or JSON `VALUE`.
 
 ### Example JSON Header
 
@@ -76,6 +75,10 @@ The BEVE data delimiter is used to separate the header, parameters, and the body
 ```c++
 0b00000'110 // delimiter in binary
 ```
+
+# Optional User Data
+
+Optional user data must conform to a BEVE or JSON `VALUE`.
 
 # Body
 
