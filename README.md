@@ -93,7 +93,6 @@ Reserved error codes match [JSON RPC 2.0](https://www.jsonrpc.org/specification)
 | -32000 to -32099 | Server error     | Reserved for implementation-defined server-errors.           |
 
 ```c++
-template <class T = void>
 struct error
 {
   int32_t code = 0;
