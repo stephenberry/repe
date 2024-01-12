@@ -10,17 +10,15 @@ REPE is a fast and simple RPC protocol for the binary [BEVE](https://github.com/
 
 ## Design
 
-- The header and body are separate to allow parsers to verify a header and run logic prior to parsing any of the body.
+- The header and body are in an array, to allow parsers to verify a header and run logic prior to parsing any of the body.
 
 # Request/Response (Message)
 
-Requests and responses use the exact same data layout. There is no distinction between them.
+Requests and responses use the exact same data layout. There is no distinction between them. Values are stored in an array.
 
-BEVE Layout: `Header | Delimiter | Optional User Data | Delimiter | Body | Delimiter`
+BEVE Layout: `[Header, Optional User Data, Body]`
 
-JSON Layout: `Header array | Optional User Data | Body value`
-
-- Where JSON elements are delimited by new lines `\n`
+JSON Layout: `[Header, Optional User Data, Body]`
 
 # Header
 
@@ -67,15 +65,7 @@ The `version` must be a `uint8_t`.
 ### Example JSON Header
 
 ```json
-[0,0,0,"method","id"]
-```
-
-# Delimiter
-
-The BEVE data delimiter is used to separate the header, parameters, and the body.
-
-```c++
-0b00000'110 // delimiter in binary
+[0,0,0,0,"method","id"]
 ```
 
 # Optional User Data
