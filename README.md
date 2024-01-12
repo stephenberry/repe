@@ -103,13 +103,5 @@ struct error
 {
   int32_t code = 0;
   std::string message = "";
-  T& data;
-};
-// or
-template <>
-struct error<void>
-{
-  int32_t code = 0;
-  std::string message = "";
 };
 ```
