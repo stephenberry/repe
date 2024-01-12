@@ -98,3 +98,7 @@ struct error
   std::string message = "";
 };
 ```
+
+## Deducing between BEVE and JSON
+
+The specification does not include a format indicator, as we don't want to require multiple formats to be handled by the server. Additionally, we don't want to require servers to build handling both BEVE and JSON. However, the message type can be determine from the first byte, since JSON messages must begin with `[` and the BEVE header must begin with a uint8_t tag ` 0b000'10'001`, which is the ascii value of `device control 1`.
