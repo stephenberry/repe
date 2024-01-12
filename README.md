@@ -8,6 +8,8 @@ REPE is a fast and simple RPC protocol for JSON or the binary [BEVE](https://git
 - Easy to use
 - Easy to parse
 
+Why not use JSON RPC 2.0? Besides needing binary support with BEVE, there are a number of [issues with JSON RPC 2.0](#json-rpc-2.0-issues) that REPE seeks to solve.
+
 ## Design
 
 - The header and body are in an array, to allow parsers to verify a header and run logic prior to parsing any of the body.
@@ -102,3 +104,12 @@ struct error
 ## Deducing between BEVE and JSON
 
 The specification does not include a format indicator, as we don't want to require multiple formats to be handled by the server. Additionally, we don't want to require servers to build handling both BEVE and JSON. However, the message type can be determine from the first byte, since JSON messages must begin with `[` and the BEVE header must begin with a uint8_t tag ` 0b000'10'001`, which is the ascii value of `device control 1`.
+
+## JSON RPC 2.0 Issues
+
+The issues with JSON RPC 2.0 that REPE seeks to address:
+- JSON RPC 2.0 sends the `method` and `id` in the same object as the parameters or result. Because JSON is unordered this means the entire object needs to be parsed before logical decisions about handling the params or result can be made. One could argue that the sequence could be required, but this would be breaking the JSON specification.
+- JSON RPC 2.0 sends the same keys over and over for "header" information, which can be easily deduced from an array. This wastes space and reduces performance for small messages.
+- JSON RPC 2.0 has different structures for the request and the response. However, it is often useful to use a response as a request, and this difference in format creates performance issues. It also makes the specification and implementations more complex.
+- JSON RPC 2.0 does not define the specification at the binary level. This makes it less efficient for implementing in C++ and other compiled languages. In JSON RPC 2.0 the id is only discouraged from being a floating point number. REPE is more restrictive, defining the integer `id` as a `uint64_t`, which makes implementations simpler and faster.
+- Notifications in JSON RPC 2.0 are not explicit. Omitting the `id` makes the request a notification. However, it can be useful to make notification calls with a specified `id`. Sometimes the response will be generated from another network path, and we want to stop results from being returned from the primary RPC path. REPE allows notifications to have an `id`, which allows more flexible use of notifications and can also help with debugging.
