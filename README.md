@@ -77,7 +77,7 @@ The body may be any BEVE value. For example, it could be an object, array, or si
 
 ## Error
 
-An error requires an error code (`int32_t`) and a string message. Additional BEVE data may be returned. The serialization format must be an array.
+An error requires an error code (`int32_t`) and a string message. The serialization format must be an array.
 
 Reserved error codes match [JSON RPC 2.0](https://www.jsonrpc.org/specification) and are nearly the same as those suggested for [XML-RPC](http://xmlrpc-epi.sourceforge.net/specs/rfc.fault_codes.php)
 
