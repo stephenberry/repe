@@ -8,7 +8,7 @@ REPE is a fast and simple RPC protocol for JSON or the binary [BEVE](https://git
 - Easy to use
 - Easy to parse
 
-Why not use JSON RPC 2.0? Besides needing binary support with BEVE, there are a number of [issues with JSON RPC 2.0](#json-rpc-2.0-issues) that REPE seeks to solve.
+Why not use JSON RPC 2.0? Besides needing binary support with BEVE, there are a number of [issues with JSON RPC 2.0](#json-rpc-issues) that REPE seeks to solve.
 
 ## Design
 
@@ -104,7 +104,7 @@ struct error
 
 The specification does not include a format indicator, as we don't want to require multiple formats to be handled by the server. Additionally, we don't want to require servers to build handling both BEVE and JSON. However, the message type can be determine from the first byte, since JSON messages must begin with `[` and the BEVE header must begin with a uint8_t tag ` 0b000'10'001`, which is the ascii value of `device control 1`.
 
-## JSON RPC 2.0 Issues
+## JSON RPC Issues
 
 The issues with JSON RPC 2.0 that REPE seeks to address:
 - JSON RPC 2.0 sends the `method` and `id` in the same object as the parameters or result. Because JSON is unordered this means the entire object needs to be parsed before logical decisions about handling the params or result can be made. One could argue that the sequence could be required, but this would be breaking the JSON specification.
