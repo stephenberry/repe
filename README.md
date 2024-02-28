@@ -53,17 +53,20 @@ The `version` must be a `uint8_t`.
 
 `action` is a single byte `uint8_t`. The individual bits on this byte are used to define separate actions. The least significant bit is the right-most bit and indexed with 0.
 
-| Bit Index | Action                        |
-| --------- | ----------------------------- |
-| 0         | Notify (no response returned) |
-| 1         | Get (retrieve a variable)     |
-| 2         | Set (assign to a variable)    |
+| Bit Index | Action                                                |
+| --------- | ----------------------------------------------------- |
+| 0         | notify (no response returned)                         |
+| 1         | empty (if this bit is set the body should be ignored) |
 
-In code, defining a notification that is also a `Set` might look like:
+In code, defining a notification that also should ignore the body might look like:
 
 ```c++
-action = repe::Notify | repe::Set;
+action = repe::notify | repe::empty;
 ```
+
+> The `empty` action is useful to distinguish between a `null` body as a value and a `null` body that should be ignored.
+>
+> This mechanism allows variables to be registered with the RPC system, where `get` calls use `empty` to express that nothing is to be assigned and `set` calls leave this bit unset to indicate that the body should be used to assign to the variable.
 
 ### Method
 
