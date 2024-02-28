@@ -55,14 +55,14 @@ The `version` must be a `uint8_t`.
 
 | Bit Index | Action                        |
 | --------- | ----------------------------- |
-| 0         | notify (no response returned) |
-| 1         | get (retrieve a variable)     |
-| 2         | set (assign to a variable)    |
+| 0         | Notify (no response returned) |
+| 1         | Get (retrieve a variable)     |
+| 2         | Set (assign to a variable)    |
 
-In code, defining a notification that is also a `set` might look like:
+In code, defining a notification that is also a `Set` might look like:
 
 ```c++
-action = repe::notify | repe::set;
+action = repe::Notify | repe::Set;
 ```
 
 ### Method
