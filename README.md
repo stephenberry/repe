@@ -26,14 +26,14 @@ JSON Layout: `[Header, Body]`
 
 # Header
 
-The header is sent as an array of `[version, error, notification, method, id]`. No elements are optional, but the `id`  may be `null`.
+The header is sent as an array of `[version, error, action, method, id]`. No elements are optional, but the `id`  may be `null`.
 
 ```c++
 // C++ pseudocode
 struct header {
   uint8_t version = 0; // the REPE version
   uint8_t error = 0; // 0 denotes no error
-  uint8_t notification = 0; // whether this RPC is a notification (no response returned)
+  uint8_t action = 0; // how the RPC is to be handled (supports notifications and more)
   std::string method = ""; // the RPC method to call
   std::variant<null_t, uint64_t, std::string> id{}; // an identifier
 };
@@ -49,9 +49,21 @@ The `version` must be a `uint8_t`.
 
 `error` is a single byte `uint8_t` to denote that an error occurred. The body will contain the error information.
 
-### Notification
+### Action
 
-`notification` is a single byte `uint8_t`. A value of 1 represents a notification. A notification does not expect a response.
+`action` is a single byte `uint8_t`. The individual bits on this byte are used to define separate actions. The least significant bit is the right-most bit and indexed with 0.
+
+| Bit Index | Action                        |
+| --------- | ----------------------------- |
+| 0         | notify (no response returned) |
+| 1         | get (retrieve a variable)     |
+| 2         | set (assign to a variable)    |
+
+In code, defining a notification that is also a `set` might look like:
+
+```c++
+action = repe::notify | repe::set;
+```
 
 ### Method
 
