@@ -30,29 +30,36 @@ All strings referred to in this specification must be UTF-8 compliant.
 
 # Header
 
-The header is sent as a packed 32 byte struct. Only the `method` name is optional if the `method_size` is zero.
+The header is sent as a packed 32 byte struct. Only the `path` name is optional if the `path_size` is zero.
 
 ```c++
+enum struct Action : uint32_t
+{
+  notify = 1 << 0, // if this message does not require a response
+  get = 1 << 1, // read a value
+  set = 1 << 2, // write a value
+  call = 1 << 3 // call a function with the body as input
+};
+
 // C++ pseudocode representing layout
 struct header {
   uint8_t version = 1; // the REPE version
   bool error{}; // whether an error has occurred
-  bool notify{}; // whether this message does not require a response
-  bool has_body{}; // whether a body is provided
-  uint32_t reserved1{};
+  uint16_t reserved1{};
+  Action action{};
   // ----
   uint64_t id{}; // identifier
-  int64_t body_size = -1; // the total size of the body (-1 denotes no size given)
+  uint64_t body_length{-1}; // the total length of the body (-1 denotes no size given)
   uint32_t reserved2{};
   uint16_t reserved3{};
-  uint16_t method_size{}; // the size of the method string
-  char method[256]{}; // the method name
+  uint16_t path_length{}; // the length of the path
+  char path[256]{}; // the JSON Pointer path
 };
 ```
 
-If the `method_size` is zero length, then the header will be 32 bytes. The header size can always be calculated as `32 + method_size`.
+If the `path_length` is zero length, then the header will be 32 bytes. The header size can always be calculated as `32 + path_length`.
 
-> The header is designed so that it can be directly streamed over a network without any additional encoding. A pointer to the header can simply be provided along with the size as `32 + method_size`. This is if the method memory is allocated in the struct as in this example.
+> The header is designed so that it can be directly streamed over a network without any additional encoding. A pointer to the header can be provided along with the size as `32 + path_length`. This is if the method memory is allocated in the struct as in this example.
 
 ### Version
 
@@ -64,60 +71,48 @@ The `version` must be a `uint8_t`.
 
 `error` is a single byte `bool` to denote that an error occurred. The body will contain the error information. `false` means no error.
 
-### Notify
-
-`notify` is a single byte `bool` to denote that this message does not require a response.
-
-### No Body
-
-`no_body` is a single byte `bool` that indicates when no body is provided.
-
-### Size
-
-`size` indicates the size in bytes of the entire message, including both the header and the body. A value of `-1` denotes that no size is provided and the message termination will be determined some other way, such as the end of a valid parse.
-
-The `size` must be an `int64_t`.
-
 ### Action
 
-`action` is a single byte `uint8_t`. The individual bits on this byte are used to define separate actions. The least significant bit is the right-most bit and indexed with 0.
-
-| Bit Index | Action                                                |
-| --------- | ----------------------------------------------------- |
-| 0         | notify (no response returned)                         |
-| 1         | empty (if this bit is set the body should be ignored) |
-
-In code, defining a notification that also should ignore the body might look like:
-
-```c++
-action = repe::notify | repe::empty;
-```
-
-> The `empty` action is useful to distinguish between a `null` body as a value and a `null` body that should be ignored.
->
-> This mechanism allows variables to be registered with the RPC system, where `get` calls use `empty` to express that nothing is to be assigned and `set` calls leave this bit unset to indicate that the body should be used to assign to the variable.
-
-### Method
-
-`method` must be a string.
+`action` is an enumeration that may have multiple bits set to denote how to handle the request.
 
 ### ID
 
-`id` is either `null`, a `uint64_t`, or a `string`.
+`id` must be a `uint64_t`.
+
+### Body Length
+
+`body_length` indicates the length in bytes of the body. A value of `-1` (wraps to largest uint64_t) denotes that no length is provided and the message termination will be determined some other way, such as the end of a valid parse.
+
+The `body_length` must be a `uint64_t`.
+
+## Path Length
+
+The number of bytes used in the path string.
+
+### Path
+
+`path` must be a valid JSON Pointer.
 
 # Body
 
 For a request call, the body contains the input parameters. For a response, the body is the result of the call.
 
-`VALUE` or `ERROR`
+`VALUE` or `ERROR` or `EMPTY`
 
-The body may be any JSON/BEVE value. For example, it could be an object, array, or single number. The body may not exist if `no_body` is set to `true`.
+The body may be any text or binary value. If `error` is true, then the body must follow the specification for errors below.
 
 ## Error
 
-An error requires an error code (`int32_t`), a string category, and a string message. The serialization format must be an array.
+An error requires an error code (`int32_t`) and a string message.
 
-The category for REPE errors is `"repe"`.
+```c++
+// C++ pseudocode representing layout
+struct error {
+  int32_t code = 0;
+  uint32_t message_length{};
+  char message[256]{};
+};
+```
 
 Reserved error codes match [JSON RPC 2.0](https://www.jsonrpc.org/specification) and are nearly the same as those suggested for [XML-RPC](http://xmlrpc-epi.sourceforge.net/specs/rfc.fault_codes.php).
 
@@ -130,15 +125,6 @@ Reserved error codes match [JSON RPC 2.0](https://www.jsonrpc.org/specification)
 | -32603           | Internal error   | Internal REPE error.                                         |
 | -32000 to -32099 | Server error     | Reserved for implementation-defined server-errors.           |
 
-```c++
-struct error
-{
-  int32_t code = 0;
-  std::string category = "repe";
-  std::string message = "";
-};
-```
+## Response
 
-## Responses
-
-It is up to the discretion of implementors whether the response returns the `method` of the original request. If you have an opinion about whether this should be required, please reach out as we formalize the specification.
+It is up to the discretion of implementors whether the response returns the `path` of the original request. Data can be saved by not returning the requested path, but it may be useful for debugging errors.
