@@ -26,11 +26,18 @@ All strings referred to in this specification must be UTF-8 compliant.
 
 # Request/Response (Message)
 
-Requests and responses use the exact same data layout. There is no distinction between them. The format contains a header and then a body.
+Requests and responses use the exact same data layout. There is no distinction between them. The format contains a header, JSON Pointer path string, and a body.
 
-Layout: `Header | Body`
+Layout: `[Header, Path, Body]`
 
-> If you require additional header information, such as a checksum, simply provide it as the first element of an array for your message body.
+```c++
+// C++ pseudocode representing a complete REPE message
+struct message {
+  repe::header header{};
+  std::string path{};
+  std::string body{};
+};
+```
 
 # Header
 
@@ -51,22 +58,19 @@ struct header {
   bool error{}; // whether an error has occurred
   uint16_t reserved1{}; // must be zero
   Action action{};
-  // ---- end of initial 8 bytes
   uint64_t id{}; // identifier
   uint64_t body_length{-1}; // the total length of the body (-1 denotes no size given)
-  uint32_t size{sizeof(decltype(*this))}; // the total header size, to support padding
-  uint16_t reserved2{}; // must be zero
-  uint16_t path_length{}; // the length of the path
-  // --- end of initial 32 bytes
-  char path[256]{}; // the JSON Pointer path
+  uint32_t reserved2{}; // must be zero
+  uint16_t reserved3{}; // must be zero
+  uint16_t path_length{}; // the length of the JSON Pointer path
 };
 ```
 
-The first 32 bytes must always be allocated in the layout shown above. The `path` must be null terminated, which means a `path_length` of zero must always have at least a single null byte.
+The header must always be 32 bytes allocated in the layout shown above.
 
-> The header is designed so that it can be directly streamed over a network without any additional encoding. A pointer to the header can be provided along with the size as `header_size`. This is if the method memory is allocated in the struct as in this example.
->
-> The `header_size` will often be the padded size of the header, which may transfer a few extra bytes, but enables simpler code and often more memory handling.
+The `path` must be null terminated, which means a `path_length` of zero must always have at least a single null byte.
+
+> The header is designed so that it can be directly streamed over a network without any additional encoding.
 
 ### Version
 
@@ -97,17 +101,17 @@ The `version` must be a `uint8_t`.
 
 The `body_length` must be a `uint64_t`.
 
-## Path Length
+### Path Length
 
 The number of bytes used in the path string. `path_length` must be a `uint16_t`.
-
-### Path
-
-`path` must be a valid null-terminated JSON Pointer. The maximum path length is limited by the `uint16_t` type of `path_length`, allowing paths up to 65,535 bytes long (minus the null termination).
 
 ### Reserved Fields
 
 All reserved fields must be set to zero by senders and ignored by receivers. These fields are reserved for future use and may be assigned meaning in later versions of the protocol.
+
+# Path
+
+The path must be a valid null-terminated JSON Pointer. The maximum path length is limited by the `uint16_t` type of `path_length`, allowing paths up to 65,535 bytes long (minus the null termination).
 
 # Body
 
