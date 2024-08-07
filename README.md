@@ -4,7 +4,7 @@
 >
 > This specification is under ACTIVE DEVELOPMENT and should be considered UNSTABLE.
 
-REPE is a fast and simple RPC protocol that can package any data format. It defines a simple binary header that pairs with a payload that can be JSON, BEVE, or any other binary or text format.
+REPE is a fast and simple RPC protocol that can package any data format. It defines a binary header that pairs with a payload that can be JSON, BEVE, or any other binary or text format.
 
 - High performance
 - Easy to use
@@ -14,7 +14,7 @@ REPE is a fast and simple RPC protocol that can package any data format. It defi
 
 > [!IMPORTANT]
 >
-> This Version 1 of the specification is a complete rework in order to support any data format instead of just JSON and BEVE. It also embeds the message size and uses a packed binary header for more efficiency, smaller messages, and reserves fields to grow the specification.
+> This Version 1 of the specification is a complete rework in order to support any data format instead of just JSON and BEVE. It also embeds the message size and uses a packed binary header for better efficiency and smaller messages.
 
 # Request/Response (Message)
 
@@ -30,7 +30,7 @@ All strings referred to in this specification must be UTF-8 compliant.
 
 # Header
 
-The header is sent as a packed 32 byte struct. Only the `path` name is optional if the `path_size` is zero.
+The header information that describes how to handle the request and payload (body).
 
 ```c++
 enum struct Action : uint32_t
@@ -91,7 +91,7 @@ The number of bytes used in the path string.
 
 ### Path
 
-`path` must be a valid JSON Pointer.
+`path` must be a valid JSON Pointer or nonexistent if the `path_length` is zero.
 
 # Body
 
