@@ -16,6 +16,10 @@ REPE is a fast and simple RPC protocol that can package any data format. It defi
 >
 > This Version 1 of the specification is a complete rework in order to support any data format instead of just JSON and BEVE. It also embeds the message size and uses a packed binary header for better efficiency and smaller messages.
 
+## Endianness
+
+The endianness must be `little endian`.
+
 # Request/Response (Message)
 
 Requests and responses use the exact same data layout. There is no distinction between them. The format contains a header and then a body.
@@ -45,13 +49,13 @@ enum struct Action : uint32_t
 struct header {
   uint8_t version = 1; // the REPE version
   bool error{}; // whether an error has occurred
-  uint16_t reserved1{};
+  uint16_t reserved1{}; // must be zero
   Action action{};
   // ----
   uint64_t id{}; // identifier
   uint64_t body_length{-1}; // the total length of the body (-1 denotes no size given)
-  uint32_t reserved2{};
-  uint16_t reserved3{};
+  uint32_t reserved2{}; // must be zero
+  uint16_t reserved3{}; // must be zero
   uint16_t path_length{}; // the length of the path
   char path[256]{}; // the JSON Pointer path
 };
@@ -75,6 +79,11 @@ The `version` must be a `uint8_t`.
 
 `action` is an enumeration that may have multiple bits set to denote how to handle the request.
 
+- `notify` - Denotes that no response should be sent. May be combined with `set` or `call` actions.
+- `get` - Reads a value at the JSON Pointer path. The `body_length` must be zero.
+- `set` - Writes the body to the value at the JSON Pointer path.
+- `call` - Calls a function at the JSON Pointer path with the body as input.
+
 ### ID
 
 `id` must be a `uint64_t`.
@@ -87,17 +96,21 @@ The `body_length` must be a `uint64_t`.
 
 ## Path Length
 
-The number of bytes used in the path string.
+The number of bytes used in the path string. `path_length` must be a `uint16_t`.
 
 ### Path
 
-`path` must be a valid JSON Pointer or nonexistent if the `path_length` is zero.
+`path` must be a valid JSON Pointer or nonexistent if the `path_length` is zero. The maximum path length is limited by the `uint16_t` type of `path_length`, allowing paths up to 65,535 bytes long.
+
+### Reserved Fields
+
+All reserved fields must be set to zero by senders and ignored by receivers. These fields are reserved for future use and may be assigned meaning in later versions of the protocol.
 
 # Body
 
-For a request call, the body contains the input parameters. For a response, the body is the result of the call.
+For a `call` action, the body contains the input parameters.
 
-`VALUE` or `ERROR` or `EMPTY`
+`VALUE`, `ERROR`, or `EMPTY`
 
 The body may be any text or binary value. If `error` is true, then the body must follow the specification for errors below.
 
@@ -125,6 +138,6 @@ Reserved error codes match [JSON RPC 2.0](https://www.jsonrpc.org/specification)
 | -32603           | Internal error   | Internal REPE error.                                         |
 | -32000 to -32099 | Server error     | Reserved for implementation-defined server-errors.           |
 
-## Response
+# Response
 
 It is up to the discretion of implementors whether the response returns the `path` of the original request. Data can be saved by not returning the requested path, but it may be useful for debugging errors.
