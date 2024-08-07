@@ -20,17 +20,17 @@ REPE is a fast and simple RPC protocol that can package any data format. It defi
 
 The endianness must be `little endian`.
 
+## Strings
+
+All strings referred to in this specification must be UTF-8 compliant.
+
 # Request/Response (Message)
 
 Requests and responses use the exact same data layout. There is no distinction between them. The format contains a header and then a body.
 
-Layout: `[Header, Body]`
+Layout: `Header | Body`
 
-> If you require additional header information, such as a checksum, simply provide it as the first element of an array for your message body. This way you can inspect this additional information prior to parsing the rest of the body.
-
-## Strings
-
-All strings referred to in this specification must be UTF-8 compliant.
+> If you require additional header information, such as a checksum, simply provide it as the first element of an array for your message body.
 
 # Header
 
@@ -51,19 +51,22 @@ struct header {
   bool error{}; // whether an error has occurred
   uint16_t reserved1{}; // must be zero
   Action action{};
-  // ----
+  // ---- end of initial 8 bytes
   uint64_t id{}; // identifier
   uint64_t body_length{-1}; // the total length of the body (-1 denotes no size given)
-  uint32_t reserved2{}; // must be zero
-  uint16_t reserved3{}; // must be zero
+  uint32_t size{sizeof(decltype(*this))}; // the total header size, to support padding
+  uint16_t reserved2{}; // must be zero
   uint16_t path_length{}; // the length of the path
+  // --- end of initial 32 bytes
   char path[256]{}; // the JSON Pointer path
 };
 ```
 
-If the `path_length` is zero length, then the header will be 32 bytes. The header size can always be calculated as `32 + path_length`.
+The first 32 bytes must always be allocated in the layout shown above. The `path` must be null terminated, which means a `path_length` of zero must always have at least a single null byte.
 
-> The header is designed so that it can be directly streamed over a network without any additional encoding. A pointer to the header can be provided along with the size as `32 + path_length`. This is if the method memory is allocated in the struct as in this example.
+> The header is designed so that it can be directly streamed over a network without any additional encoding. A pointer to the header can be provided along with the size as `header_size`. This is if the method memory is allocated in the struct as in this example.
+>
+> The `header_size` will often be the padded size of the header, which may transfer a few extra bytes, but enables simpler code and often more memory handling.
 
 ### Version
 
@@ -100,7 +103,7 @@ The number of bytes used in the path string. `path_length` must be a `uint16_t`.
 
 ### Path
 
-`path` must be a valid JSON Pointer or nonexistent if the `path_length` is zero. The maximum path length is limited by the `uint16_t` type of `path_length`, allowing paths up to 65,535 bytes long.
+`path` must be a valid null-terminated JSON Pointer. The maximum path length is limited by the `uint16_t` type of `path_length`, allowing paths up to 65,535 bytes long (minus the null termination).
 
 ### Reserved Fields
 
@@ -139,5 +142,7 @@ Reserved error codes match [JSON RPC 2.0](https://www.jsonrpc.org/specification)
 | -32000 to -32099 | Server error     | Reserved for implementation-defined server-errors.           |
 
 # Response
+
+Responses should typically return an action with a pure `notify`. This indicates that the server is not expecting anything in return.
 
 It is up to the discretion of implementors whether the response returns the `path` of the original request. Data can be saved by not returning the requested path, but it may be useful for debugging errors.
