@@ -4,73 +4,84 @@
 >
 > This specification is under ACTIVE DEVELOPMENT and should be considered UNSTABLE.
 
-REPE is a fast and simple RPC protocol that can package any data format. It defines a binary header that pairs with a payload that can be JSON, BEVE, or any other binary or text format.
+REPE is a fast and simple RPC/Database protocol that can package any data format and any query specification. It defines a binary header that provides a simple action protocol, which can be invoked with any query specification. The payload (body) can be any format, JSON, BEVE, raw binary, text, etc.
 
 - High performance
 - Easy to use
 - Easy to parse
 
+> The motivation is to provide a standard way to build RPC interfaces and databases with flexible formats and query specifications.
+
 # Version 1
 
 > [!IMPORTANT]
 >
-> This Version 1 of the specification is a complete rework in order to support any data format instead of just JSON and BEVE. It also embeds the message size and uses a packed binary header for better efficiency and smaller messages.
+> This Version 1 of the specification is a complete rework in order to support any data format. It also embeds the message size and uses a packed binary header for better efficiency and smaller messages.
 
 ## Endianness
 
-The endianness must be `little endian`.
+The endianness must be `little endian`, selected for optimal performance on modern systems.
 
 ## Strings
 
-All strings referred to in this specification must be UTF-8 compliant.
+All strings referred to in this specification must be UTF-8 compliant. Implementers must validate string encodings upon receiving messages.
 
 # Request/Response (Message)
 
-Requests and responses use the exact same data layout. There is no distinction between them. The format contains a header, JSON Pointer path string, and a body.
+Requests and responses use the exact same data layout. There is no distinction between them. The format contains a header, query, and body.
 
-Layout: `[Header, Path, Body]`
+REPE Layout: `[Header, Query, Body]`
 
 ```c++
 // C++ pseudocode representing a complete REPE message
 struct message {
-  repe::header header{};
-  std::string path{};
-  std::string body{};
+  repe::header header{}; // fixed size header
+  const char* query{}; // dynamic size query
+  const char* body{}; // dynamic size body
 };
 ```
 
 # Header
 
-The header information that describes how to handle the request and payload (body).
+The header information that describes how to handle the request and payload (query & body).
 
 ```c++
 enum struct Action : uint32_t
 {
-  notify = 1 << 0, // if this message does not require a response
-  get = 1 << 1, // read a value
-  set = 1 << 2, // write a value
-  call = 1 << 3 // call a function with the body as input
+  notify = 1 << 0, // If this message does not require a response
+  get = 1 << 1, // Read a value
+  set = 1 << 2, // Write a value
+  call = 1 << 3 // Call a function with the body as input
 };
 
 // C++ pseudocode representing layout
 struct header {
-  uint8_t version = 1; // the REPE version
-  bool error{}; // whether an error has occurred
-  uint16_t reserved1{}; // must be zero
-  Action action{};
-  uint64_t id{}; // identifier
-  uint64_t body_length{-1}; // the total length of the body (-1 denotes no size given)
-  uint32_t reserved2{}; // must be zero
-  uint16_t reserved3{}; // must be zero
-  uint16_t path_length{}; // the length of the JSON Pointer path
+  uint64_t length{-1}; // Total length of [header, query, body]
+  //
+  uint16_t spec{0x1507}; // (5383) Magic two bytes to denote the REPE specification
+  uint8_t version = 1; // REPE version
+  bool error{}; // Whether an error has occurred
+  Action action{}; // Action to take, multiple actions may be bit-packed together
+  //
+  uint64_t id{}; // Identifier
+  //
+  uint64_t query_length{-1}; // The total length of the query (-1 denotes no size given)
+  //
+  uint64_t body_length{-1}; // The total length of the body (-1 denotes no size given)
+  //
+  uint64_t reserved{}; // Must be set to zero
 };
 ```
 
-The header must always be 32 bytes allocated in the layout shown above.
+The header must be exactly 48 bytes allocated in the layout shown above. All fields in the header must be aligned to their natural boundaries (e.g., `uint64_t` on 8-byte boundaries). No padding bytes are included whatsoever.
 
-The `path` must be null terminated, which means a `path_length` of zero must always have at least a single null byte.
+### Length
 
-> The header is designed so that it can be directly streamed over a network without any additional encoding.
+The `length` field represents the total length of `[header, query, body]`. A value of `-1` (wrapped to the largest `uint64_t`) indicates that the length is unspecified. In such cases, the message termination must be determined by alternative means.
+
+### Spec
+
+The REPE `spec` value of `0x1507` is used to disambiguate REPE from other specifications that may use a similar layout. In this way manner branching may be performed on the first 8 bytes (length + spec).
 
 ### Version
 
@@ -78,75 +89,101 @@ The `version` must be a `uint8_t`.
 
 > The latest version is `1`
 
+This version of REPE does not require backwards compatibility, but errors must be returned for mismatching versions.
+
 ### Error Boolean
 
-`error` is a single byte `bool` to denote that an error occurred. The body will contain the error information. `false` means no error.
+`error` is a single byte `bool` to denote that an error occurred. The body will contain the error information.
+
+- `0x00` denotes `false` (no error)
+
+- `0x01` denotes `true` (error occurred)
+
+All other values are considered invalid.
 
 ### Action
 
-`action` is an enumeration that may have multiple bits set to denote how to handle the request.
+The `Action` enumeration defines the operation to perform. Multiple actions can be combined using bitwise OR, but certain combinations may have specific interpretations.
 
 - `notify` - Denotes that no response should be sent. May be combined with `set` or `call` actions.
-- `get` - Reads a value at the JSON Pointer path. The `body_length` must be zero.
-- `set` - Writes the body to the value at the JSON Pointer path.
-- `call` - Calls a function at the JSON Pointer path with the body as input.
+- `get` - Reads a value denoted by the query. The `body_length` must be zero.
+- `set` - Writes the body to the value denoted by the query.
+- `call` - Calls a function at the query location with the body as input.
+
+`notify | set`: Indicates a notification to set a value without expecting a response.
+
+ `notify | call`: Indicates a notification to call a function without expecting a response.
+
+Invalid combinations (e.g., `get | call`) should result in an error.
 
 ### ID
 
 `id` must be a `uint64_t`.
 
+The `id` field may be used as a unique `uint64_t` identifier for each request. Responses must use the same `id` to allow clients to match responses to their corresponding requests, for asynchronous communication.
+
+### Query Length
+
+`query_length` indicates the length in bytes of the query. A value of `-1` (wraps to largest uint64_t) denotes that no length is provided and the message termination will be determined some other way, such as the end of a valid parse.
+
 ### Body Length
 
 `body_length` indicates the length in bytes of the body. A value of `-1` (wraps to largest uint64_t) denotes that no length is provided and the message termination will be determined some other way, such as the end of a valid parse.
 
-The `body_length` must be a `uint64_t`.
+If `body_length` is set to zero, the body section is omitted. Implementers must ensure that actions requiring a body (e.g., `set`, `call`) are not used with `body_length` zero, and respond with an appropriate error if such a mismatch occurs.
 
-### Path Length
+### String Length Constraints
 
-The number of bytes used in the path string. `path_length` must be a `uint16_t`.
+While the protocol supports strings of extremely long length, implementers should enforce reasonable maximum lengths based on application requirements to prevent resource exhaustion and ensure efficient processing.
 
-### Reserved Fields
+## Reserved Space
 
-All reserved fields must be set to zero by senders and ignored by receivers. These fields are reserved for future use and may be assigned meaning in later versions of the protocol.
+The reserved 8 bytes in the header are for potential future versions of REPE.
 
-# Path
+# Query
 
-The path must be a valid null-terminated JSON Pointer. The maximum path length is limited by the `uint16_t` type of `path_length`, allowing paths up to 65,535 bytes long (minus the null termination).
+The query may use any specification chosen by implementors.
 
 # Body
 
+The body can contain data in any format, including JSON, BEVE, raw binary, or text. Implementers should document the expected data formats for their specific use cases to ensure consistent parsing and handling.
+
+The body must contain a REPE error if the `error` boolean in the header is set to `true`. If the `body_length` is set to zero, then no body is provided.
+
 For a `call` action, the body contains the input parameters.
-
-`VALUE`, `ERROR`, or `EMPTY`
-
-The body may be any text or binary value. If `error` is true, then the body must follow the specification for errors below.
 
 ## Error
 
-An error requires an error code (`int32_t`) and a string message.
+An error requires a `uint32_t` error code and a string message.
 
 ```c++
 // C++ pseudocode representing layout
 struct error {
-  int32_t code = 0;
+  uint32_t code = 0; // 0 is OK (no error)
   uint32_t message_length{};
-  char message[256]{};
+  const char* message{};
 };
 ```
 
-Reserved error codes match [JSON RPC 2.0](https://www.jsonrpc.org/specification) and are nearly the same as those suggested for [XML-RPC](http://xmlrpc-epi.sourceforge.net/specs/rfc.fault_codes.php).
+Below is a table of defined error codes. Values from `0` to `4095` are reserved for REPE high-level error codes. Codes `4096` and above are available for application-specific errors.
 
-| code             | message          | meaning                                                      |
-| :--------------- | :--------------- | :----------------------------------------------------------- |
-| -32700           | Parse error      | Invalid data was received by the server. An error occurred on the server while parsing the data. |
-| -32600           | Invalid Request  | The data sent is not a valid Request object.                 |
-| -32601           | Method not found | The method does not exist / is not available.                |
-| -32602           | Invalid params   | Invalid method parameter(s).                                 |
-| -32603           | Internal error   | Internal REPE error.                                         |
-| -32000 to -32099 | Server error     | Reserved for implementation-defined server-errors.           |
+| code | message          | meaning                                                      |
+| :--- | :--------------- | :----------------------------------------------------------- |
+| 0    | OK               | No error                                                     |
+| 1    | Version mismatch | Mismatching REPE version                                     |
+| 2    | Invalid header   | The REPE header as invalid                                   |
+| 3    | Invalid query    | The query was invalid                                        |
+| 4    | Invalid body     | The body was invalid.                                        |
+| 5    | Parse error      | Invalid data was received. An error occurred while parsing the data. |
+| 6    | Method not found | The method does not exist / is not available.                |
+| 7    | Invalid query    | The query was invalid                                        |
+
+### Application-Specific Errors
+
+ Applications may define their own error codes starting from `4096` to avoid conflicts with REPE's high-level errors.
 
 # Response
 
-Responses should typically return an action with a pure `notify`. This indicates that the server is not expecting anything in return.
+RPC responses from the server should typically return an action with a pure `notify`. This indicates that the server is not expecting anything back from the client.
 
-It is up to the discretion of implementors whether the response returns the `path` of the original request. Data can be saved by not returning the requested path, but it may be useful for debugging errors.
+It is up to the discretion of implementors whether the response returns the original query. Data can be saved by not returning the requested query, but it may be useful for debugging errors.
