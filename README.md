@@ -54,9 +54,11 @@ enum struct Action : uint32_t
   call = 1 << 3 // Call a function with the body as input
 };
 
+constexpr auto no_length_provided = std::numeric_limits<uint64_t>::max();
+
 // C++ pseudocode representing layout
 struct header {
-  uint64_t length{-1}; // Total length of [header, query, body]
+  uint64_t length{no_length_provided}; // Total length of [header, query, body]
   //
   uint16_t spec{0x1507}; // (5383) Magic two bytes to denote the REPE specification
   uint8_t version = 1; // REPE version
@@ -65,9 +67,9 @@ struct header {
   //
   uint64_t id{}; // Identifier
   //
-  uint64_t query_length{-1}; // The total length of the query (-1 denotes no size given)
+  uint64_t query_length{no_length_provided}; // The total length of the query
   //
-  uint64_t body_length{-1}; // The total length of the body (-1 denotes no size given)
+  uint64_t body_length{no_length_provided}; // The total length of the body
   //
   uint16_t query_format{};
   uint16_t body_format{};
