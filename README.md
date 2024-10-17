@@ -69,7 +69,9 @@ struct header {
   //
   uint64_t body_length{-1}; // The total length of the body (-1 denotes no size given)
   //
-  uint64_t reserved{}; // Must be set to zero
+  uint16_t query_format{};
+  uint16_t body_format{};
+  uint32_t reserved{}; // Must be set to zero
 };
 ```
 
@@ -136,9 +138,30 @@ If `body_length` is set to zero, the body section is omitted. Implementers must 
 
 While the protocol supports strings of extremely long length, implementers should enforce reasonable maximum lengths based on application requirements to prevent resource exhaustion and ensure efficient processing.
 
-## Reserved Space
+### Query Format
 
-The reserved 8 bytes in the header are for potential future versions of REPE.
+`query_format` is a two byte unsigned integer that may denote the format for the query.
+
+**Reserved Query Formats**
+
+```
+1 - JSON Pointer Syntax
+```
+
+### Body Format
+
+`query_format` is a two byte unsigned integer that may denote the format for the body.
+
+**Reserved Body Formats**
+
+```
+1 - BEVE
+2 - JSON
+```
+
+### Reserved Space
+
+The reserved 4s bytes in the header are for potential future versions of REPE.
 
 # Query
 
