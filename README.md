@@ -36,8 +36,8 @@ REPE Layout: `[Header, Query, Body]`
 // C++ pseudocode representing a complete REPE message
 struct message {
   repe::header header{}; // fixed size header
-  const char* query{}; // dynamic size query
-  const char* body{}; // dynamic size body
+  std::string query{}; // dynamic size query
+  std::string body{}; // dynamic size body
 };
 ```
 
@@ -176,7 +176,7 @@ Below is a table of defined error codes. Values from `0` to `4095` are reserved 
 | 4    | Invalid body     | The body was invalid.                                        |
 | 5    | Parse error      | Invalid data was received. An error occurred while parsing the data. |
 | 6    | Method not found | The method does not exist / is not available.                |
-| 7    | Invalid query    | The query was invalid                                        |
+| 7    | Timeout          | Timeout                                                      |
 
 ### Application-Specific Errors
 
