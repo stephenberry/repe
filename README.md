@@ -1,140 +1,214 @@
 # REPE (Remote Efficient Protocol Extension)
 
+> [!CAUTION]
+>
 > This specification is under ACTIVE DEVELOPMENT and should be considered UNSTABLE.
 
-REPE is a fast and simple RPC protocol for JSON or the binary [BEVE](https://github.com/stephenberry/beve) specification.
+REPE is a fast and simple RPC/Database protocol that can package any data format and any query specification. It defines a binary header that provides a simple action protocol, which can be invoked with any query specification. The payload (body) can be any format, JSON, BEVE, raw binary, text, etc.
 
 - High performance
 - Easy to use
 - Easy to parse
 
-Why not use JSON RPC 2.0? Besides needing binary support with BEVE, there are a number of [issues with JSON RPC 2.0](#json-rpc-issues) that REPE seeks to solve.
+> The motivation is to provide a standard way to build RPC interfaces and databases with flexible formats and query specifications.
 
-## Design
+# Version 1
 
-- The header and body are in an array, to allow parsers to verify a header and run logic prior to parsing any of the body.
+> [!IMPORTANT]
+>
+> This Version 1 of the specification is a complete rework in order to support any data format. It also embeds the message size and uses a packed binary header for better efficiency and smaller messages.
+
+## Endianness
+
+The endianness must be `little endian`, selected for optimal performance on modern systems.
+
+## Strings
+
+All strings referred to in this specification must be UTF-8 compliant. Implementers must validate string encodings upon receiving messages.
 
 # Request/Response (Message)
 
-Requests and responses use the exact same data layout. There is no distinction between them. The format is an array of two elements.
+Requests and responses use the exact same data layout. There is no distinction between them. The format contains a header, query, and body.
 
-BEVE Layout: `[Header, Body]`
+REPE Layout: `[Header, Query, Body]`
 
-JSON Layout: `[Header, Body]`
-
-> If you require additional header information, such as a checksum, simply provide it as the first element of an array for your message body. This way you can inspect this additional information prior to parsing the rest of the body.
+```c++
+// C++ pseudocode representing a complete REPE message
+struct message {
+  repe::header header{}; // fixed size header
+  std::string query{}; // dynamic size query
+  std::string body{}; // dynamic size body
+};
+```
 
 # Header
 
-The header is sent as an array of `[version, error, action, method, id]`. No elements are optional, but the `id`  may be `null`.
+The header information that describes how to handle the request and payload (query & body).
 
 ```c++
-// C++ pseudocode
+enum struct Action : uint32_t
+{
+  notify = 1 << 0, // If this message does not require a response
+  get = 1 << 1, // Read a value
+  set = 1 << 2, // Write a value
+  call = 1 << 3 // Call a function with the body as input
+};
+
+constexpr auto no_length_provided = std::numeric_limits<uint64_t>::max();
+
+// C++ pseudocode representing layout
 struct header {
-  uint8_t version = 0; // the REPE version
-  uint8_t error = 0; // 0 denotes no error
-  uint8_t action = 0; // how the RPC is to be handled (supports notifications and more)
-  std::string method = ""; // the RPC method to call
-  std::variant<null_t, uint64_t, std::string> id{}; // an identifier
+  uint64_t length{no_length_provided}; // Total length of [header, query, body]
+  //
+  uint16_t spec{0x1507}; // (5383) Magic two bytes to denote the REPE specification
+  uint8_t version = 1; // REPE version
+  bool error{}; // Whether an error has occurred
+  Action action{}; // Action to take, multiple actions may be bit-packed together
+  //
+  uint64_t id{}; // Identifier
+  //
+  uint64_t query_length{no_length_provided}; // The total length of the query
+  //
+  uint64_t body_length{no_length_provided}; // The total length of the body
+  //
+  uint16_t query_format{};
+  uint16_t body_format{};
+  uint32_t reserved{}; // Must be set to zero
 };
 ```
+
+The header must be exactly 48 bytes allocated in the layout shown above. All fields in the header must be aligned to their natural boundaries (e.g., `uint64_t` on 8-byte boundaries). No padding bytes are included whatsoever.
+
+### Length
+
+The `length` field represents the total length of `[header, query, body]`. A value of `-1` (wrapped to the largest `uint64_t`) indicates that the length is unspecified. In such cases, the message termination must be determined by alternative means.
+
+### Spec
+
+The REPE `spec` value of `0x1507` is used to disambiguate REPE from other specifications that may use a similar layout. In this way manner branching may be performed on the first 8 bytes (length + spec).
 
 ### Version
 
 The `version` must be a `uint8_t`.
 
-> The latest version is `0`
+> The latest version is `1`
 
-### Error Flag
+This version of REPE does not require backwards compatibility, but errors must be returned for mismatching versions.
 
-`error` is a single byte `uint8_t` to denote that an error occurred. The body will contain the error information.
+### Error Boolean
+
+`error` is a single byte `bool` to denote that an error occurred. The body will contain the error information.
+
+- `0x00` denotes `false` (no error)
+
+- `0x01` denotes `true` (error occurred)
+
+All other values are considered invalid.
 
 ### Action
 
-`action` is a single byte `uint8_t`. The individual bits on this byte are used to define separate actions. The least significant bit is the right-most bit and indexed with 0.
+The `Action` enumeration defines the operation to perform. Multiple actions can be combined using bitwise OR, but certain combinations may have specific interpretations.
 
-| Bit Index | Action                                                |
-| --------- | ----------------------------------------------------- |
-| 0         | notify (no response returned)                         |
-| 1         | empty (if this bit is set the body should be ignored) |
+- `notify` - Denotes that no response should be sent. May be combined with `set` or `call` actions.
+- `get` - Reads a value denoted by the query. The `body_length` must be zero.
+- `set` - Writes the body to the value denoted by the query.
+- `call` - Calls a function at the query location with the body as input.
 
-In code, defining a notification that also should ignore the body might look like:
+`notify | set`: Indicates a notification to set a value without expecting a response.
 
-```c++
-action = repe::notify | repe::empty;
-```
+ `notify | call`: Indicates a notification to call a function without expecting a response.
 
-> The `empty` action is useful to distinguish between a `null` body as a value and a `null` body that should be ignored.
->
-> This mechanism allows variables to be registered with the RPC system, where `get` calls use `empty` to express that nothing is to be assigned and `set` calls leave this bit unset to indicate that the body should be used to assign to the variable.
-
-### Method
-
-`method` must be a string type of UTF-8 characters.
+Invalid combinations (e.g., `get | call`) should result in an error.
 
 ### ID
 
-`id` is either null, a `uint64_t`, or a `string`.
+`id` must be a `uint64_t`.
 
-### Example JSON Header
+The `id` field may be used as a unique `uint64_t` identifier for each request. Responses must use the same `id` to allow clients to match responses to their corresponding requests, for asynchronous communication.
 
-```json
-[0,0,0,"method","id"]
+### Query Length
+
+`query_length` indicates the length in bytes of the query. A value of `-1` (wraps to largest uint64_t) denotes that no length is provided and the message termination will be determined some other way, such as the end of a valid parse.
+
+### Body Length
+
+`body_length` indicates the length in bytes of the body. A value of `-1` (wraps to largest uint64_t) denotes that no length is provided and the message termination will be determined some other way, such as the end of a valid parse.
+
+If `body_length` is set to zero, the body section is omitted. Implementers must ensure that actions requiring a body (e.g., `set`, `call`) are not used with `body_length` zero, and respond with an appropriate error if such a mismatch occurs.
+
+### String Length Constraints
+
+While the protocol supports strings of extremely long length, implementers should enforce reasonable maximum lengths based on application requirements to prevent resource exhaustion and ensure efficient processing.
+
+### Query Format
+
+`query_format` is a two byte unsigned integer that may denote the format for the query.
+
+**Reserved Query Formats**
+
 ```
+1 - JSON Pointer Syntax
+```
+
+### Body Format
+
+`query_format` is a two byte unsigned integer that may denote the format for the body.
+
+**Reserved Body Formats**
+
+```
+1 - BEVE
+2 - JSON
+```
+
+### Reserved Space
+
+The reserved 4s bytes in the header are for potential future versions of REPE.
+
+# Query
+
+The query may use any specification chosen by implementors.
 
 # Body
 
-For a request call, the body contains the input parameters. For a response, the body is the result of the call.
+The body can contain data in any format, including JSON, BEVE, raw binary, or text. Implementers should document the expected data formats for their specific use cases to ensure consistent parsing and handling.
 
-`VALUE` or `ERROR`
+The body must contain a REPE error if the `error` boolean in the header is set to `true`. If the `body_length` is set to zero, then no body is provided.
 
-The body may be any BEVE value. For example, it could be an object, array, or single number. A body must exist, but it could simply be a null value.
-
-> Allowing any BEVE/JSON value makes interfaces more efficient by avoiding additional wrapping inside structures like arrays.
+For a `call` action, the body contains the input parameters.
 
 ## Error
 
-An error requires an error code (`int32_t`) and a string message. The serialization format must be an array.
-
-Reserved error codes match [JSON RPC 2.0](https://www.jsonrpc.org/specification) and are nearly the same as those suggested for [XML-RPC](http://xmlrpc-epi.sourceforge.net/specs/rfc.fault_codes.php)
-
-| code             | message          | meaning                                                      |
-| :--------------- | :--------------- | :----------------------------------------------------------- |
-| -32700           | Parse error      | Invalid data was received by the server. An error occurred on the server while parsing the data. |
-| -32600           | Invalid Request  | The data sent is not a valid Request object.                 |
-| -32601           | Method not found | The method does not exist / is not available.                |
-| -32602           | Invalid params   | Invalid method parameter(s).                                 |
-| -32603           | Internal error   | Internal REPE error.                                         |
-| -32000 to -32099 | Server error     | Reserved for implementation-defined server-errors.           |
+An error requires a `uint32_t` error code and a string message.
 
 ```c++
-struct error
-{
-  int32_t code = 0;
-  std::string message = "";
+// C++ pseudocode representing layout
+struct error {
+  uint32_t code = 0; // 0 is OK (no error)
+  uint32_t message_length{};
+  const char* message{};
 };
 ```
 
-## Examples
+Below is a table of defined error codes. Values from `0` to `4095` are reserved for REPE high-level error codes. Codes `4096` and above are available for application-specific errors.
 
-```json
-[[0,0,0,"sum",1],[1,2,3,4]] // RPC request
-[[0,0,0,"sum",1],10] // RPC response
-```
+| code | message          | meaning                                                      |
+| :--- | :--------------- | :----------------------------------------------------------- |
+| 0    | OK               | No error                                                     |
+| 1    | Version mismatch | Mismatching REPE version                                     |
+| 2    | Invalid header   | The REPE header as invalid                                   |
+| 3    | Invalid query    | The query was invalid                                        |
+| 4    | Invalid body     | The body was invalid.                                        |
+| 5    | Parse error      | Invalid data was received. An error occurred while parsing the data. |
+| 6    | Method not found | The method does not exist / is not available.                |
+| 7    | Timeout          | Timeout                                                      |
 
-## Responses
+### Application-Specific Errors
 
-It is up to the discretion of implementors whether the response returns the `method` of the original request. If you have an opinion about whether this should be required, please reach out as we formalize the specification.
+ Applications may define their own error codes starting from `4096` to avoid conflicts with REPE's high-level errors.
 
-## Deducing between BEVE and JSON
+# Response
 
-The specification does not include a format indicator, as we don't want to require multiple formats to be handled by the server. Additionally, we don't want to require servers to build handling both BEVE and JSON. However, the message type can be determine from the first byte, since JSON messages must begin with `[` and the BEVE header must begin with a uint8_t tag ` 0b000'10'001`, which is the ascii value of `device control 1`.
+RPC responses from the server should typically return an action with a pure `notify`. This indicates that the server is not expecting anything back from the client.
 
-## JSON RPC Issues
-
-The issues with JSON RPC 2.0 that REPE seeks to address:
-- JSON RPC 2.0 sends the `method` and `id` in the same object as the parameters or result. Because JSON is unordered this means the entire object needs to be parsed before logical decisions about handling the params or result can be made. One could argue that the sequence could be required, but this would be breaking the JSON specification.
-- JSON RPC 2.0 sends the same keys over and over for "header" information, which can be easily deduced from an array. This wastes space and reduces performance for small messages.
-- JSON RPC 2.0 has different structures for the request and the response. However, it is often useful to use a response as a request, and this difference in format creates performance issues. It also makes the specification and implementations more complex.
-- JSON RPC 2.0 does not define the specification at the binary level. This makes it less efficient for implementing in C++ and other compiled languages. In JSON RPC 2.0 the id is only discouraged from being a floating point number. REPE is more restrictive, defining the integer `id` as a `uint64_t`, which makes implementations simpler and faster.
-- Notifications in JSON RPC 2.0 are not explicit. Omitting the `id` makes the request a notification. However, it can be useful to make notification calls with a specified `id`. Sometimes the response will be generated from another network path, and we want to stop results from being returned from the primary RPC path. REPE allows notifications to have an `id`, which allows more flexible use of notifications and can also help with debugging.
+It is up to the discretion of implementors whether the response returns the original query. Data can be saved by not returning the requested query, but it may be useful for debugging errors.
