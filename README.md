@@ -73,7 +73,7 @@ struct header {
   //
   uint16_t query_format{};
   uint16_t body_format{};
-  uint32_t reserved{}; // Must be set to zero
+  error_code ec{}; // uint32_t based error code
 };
 ```
 
@@ -161,9 +161,9 @@ While the protocol supports strings of extremely long length, implementers shoul
 2 - JSON
 ```
 
-### Reserved Space
+### Error Code
 
-The reserved 4s bytes in the header are for potential future versions of REPE.
+A `uint32_t` error code.
 
 # Query
 
@@ -173,18 +173,17 @@ The query may use any specification chosen by implementors.
 
 The body can contain data in any format, including JSON, BEVE, raw binary, or text. Implementers should document the expected data formats for their specific use cases to ensure consistent parsing and handling.
 
-The body must contain a REPE error if the `error` boolean in the header is set to `true`. If the `body_length` is set to zero, then no body is provided.
+The body may contain a REPE error message if the `error` boolean in the header is set to `true`. If the `body_length` is set to zero, then no body is provided.
 
 For a `call` action, the body contains the input parameters.
 
-## Error
+## On Error
 
-An error requires a `uint32_t` error code and a string message.
+An error requires a `uint32_t` error code and optionally a string message.
 
 ```c++
 // C++ pseudocode representing layout
-struct error {
-  uint32_t code = 0; // 0 is OK (no error)
+struct error_message {
   uint32_t message_length{};
   const char* message{};
 };
