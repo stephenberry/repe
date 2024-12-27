@@ -62,7 +62,7 @@ struct header {
   //
   uint16_t spec{0x1507}; // (5383) Magic two bytes to denote the REPE specification
   uint8_t version = 1; // REPE version
-  bool error{}; // Whether an error has occurred
+  uint8_t reserved{}; // Must be zero
   Action action{}; // Action to take, multiple actions may be bit-packed together
   //
   uint64_t id{}; // Identifier
@@ -73,7 +73,7 @@ struct header {
   //
   uint16_t query_format{};
   uint16_t body_format{};
-  error_code ec{}; // uint32_t based error code
+  uint32_t reserved{}; // Must be set to zero
 };
 ```
 
@@ -94,16 +94,6 @@ The `version` must be a `uint8_t`.
 > The latest version is `1`
 
 This version of REPE does not require backwards compatibility, but errors must be returned for mismatching versions.
-
-### Error Boolean
-
-`error` is a single byte `bool` to denote that an error occurred. The body will contain the error information.
-
-- `0x00` denotes `false` (no error)
-
-- `0x01` denotes `true` (error occurred)
-
-All other values are considered invalid.
 
 ### Action
 
@@ -161,9 +151,9 @@ While the protocol supports strings of extremely long length, implementers shoul
 2 - JSON
 ```
 
-### Error Code
+### Reserved Space
 
-A `uint32_t` error code.
+The reserved 4s bytes in the header are for potential future versions of REPE.
 
 # Query
 
@@ -173,17 +163,18 @@ The query may use any specification chosen by implementors.
 
 The body can contain data in any format, including JSON, BEVE, raw binary, or text. Implementers should document the expected data formats for their specific use cases to ensure consistent parsing and handling.
 
-The body may contain a REPE error message if the `error` boolean in the header is set to `true`. If the `body_length` is set to zero, then no body is provided.
+The body must contain a REPE error if the `error` boolean in the header is set to `true`. If the `body_length` is set to zero, then no body is provided.
 
 For a `call` action, the body contains the input parameters.
 
-## On Error
+## Error
 
-An error requires a `uint32_t` error code and optionally a string message.
+An error requires a `uint32_t` error code and a string message.
 
 ```c++
 // C++ pseudocode representing layout
-struct error_message {
+struct error {
+  uint32_t code = 0; // 0 is OK (no error)
   uint32_t message_length{};
   const char* message{};
 };
