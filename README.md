@@ -18,7 +18,7 @@ The endianness must be `little endian`, selected for optimal performance on mode
 
 ## Strings
 
-All strings referred to in this specification must be UTF-8 compliant. Implementers must validate string encodings upon receiving messages.
+All strings referred to in this specification must be UTF-8 compliant.
 
 # Request/Response (Message)
 
@@ -45,14 +45,13 @@ enum struct Action : uint32_t
   notify = 1 << 0, // If this message does not require a response
   get = 1 << 1, // Read a value
   set = 1 << 2, // Write a value
-  call = 1 << 3 // Call a function with the body as input
+  call = 1 << 3, // Call a function with the body as input
+  response = 1 << 4 // Indicates that the body contains the response
 };
-
-constexpr auto no_length_provided = std::numeric_limits<uint64_t>::max();
 
 // C++ pseudocode representing layout
 struct header {
-  uint64_t length{no_length_provided}; // Total length of [header, query, body]
+  uint64_t length{}; // Total length of [header, query, body]
   //
   uint16_t spec{0x1507}; // (5383) Magic two bytes to denote the REPE specification
   uint8_t version = 1; // REPE version
@@ -61,9 +60,9 @@ struct header {
   //
   uint64_t id{}; // Identifier
   //
-  uint64_t query_length{no_length_provided}; // The total length of the query
+  uint64_t query_length{}; // The total length of the query
   //
-  uint64_t body_length{no_length_provided}; // The total length of the body
+  uint64_t body_length{}; // The total length of the body
   //
   uint16_t query_format{};
   uint16_t body_format{};
@@ -76,6 +75,8 @@ The header must be exactly 48 bytes with fields following the exact order shown 
 ### Length
 
 The `length` field represents the total length of `[header, query, body]`. The length must always be provided for a valid message.
+
+The `length` must equal `48 + query_length + body_length`
 
 ### Spec
 
@@ -99,12 +100,21 @@ The `Action` enumeration defines the operation to perform. Some actions can be c
 - `get` - Reads a value denoted by the query. The `body_length` must be zero.
 - `set` - Writes the body to the value denoted by the query. The `body_length` must not be zero.
 - `call` - Calls a function at the query location with the body as input. The `body_length` may be zero.
+- `response` - Used to explicitly indicate that the body contains a response from a `get`, `set`, or `call` request. A `response` action is like a `notify` and doesn't expect anything back from the client.
+
+`get`, `set`, `call`, and `response` are mutually exclusive.
+
+**Valid Standalone Actions**
+
+`get`, `set`, `call`, and `response`
+
+**Valid Combined Actions**
 
 `notify | set`: Indicates a notification to set a value without expecting a response.
 
 `notify | call`: Indicates a notification to call a function without expecting a response.
 
-All other combinations (e.g., `get | call`) should result in an error.
+All other combinations should result in an error  (`get | call`, `get | notify`, etc.) .
 
 ### ID
 
@@ -114,11 +124,11 @@ The `id` field may be used as a unique `uint64_t` identifier for each request. R
 
 ### Query Length
 
-`query_length` indicates the length in bytes of the query. A value of `-1` (wraps to largest uint64_t) denotes that no length was provided and the message is in an invalid state.
+`query_length` indicates the length in bytes of the query.
 
 ### Body Length
 
-`body_length` indicates the length in bytes of the body. A value of `-1` (wraps to largest uint64_t) denotes that no length was provided and the message is in an invalid state.
+`body_length` indicates the length in bytes of the body.
 
 If `body_length` is set to zero, the body section is omitted. Implementers must ensure that actions requiring a body (e.g., `set`, `call`) are not used with `body_length` zero, and respond with an appropriate error if such a mismatch occurs.
 
@@ -128,7 +138,7 @@ While the protocol supports strings of extremely long length, implementers shoul
 
 ### Query Format
 
-`query_format` is a two byte unsigned integer that may denote the format for the query.
+`query_format` is a two byte unsigned integer that may denote the format for the query. Value from [0, 4095] are reserved for the REPE specification. Custom formats should use values above 4095.
 
 **Reserved Query Formats**
 
@@ -138,14 +148,13 @@ While the protocol supports strings of extremely long length, implementers shoul
 
 ### Body Format
 
-`body_format` is a two byte unsigned integer that may denote the format for the body.
+`body_format` is a two byte unsigned integer that may denote the format for the body. Value from [0, 4095] are reserved for the REPE specification. Custom formats should use values above 4095.
 
 **Reserved Body Formats**
 
-```
-1 - BEVE
-2 - JSON
-```
+1 - [BEVE](https://github.com/beve-org/beve)
+
+2 - [JSON](https://www.json.org/json-en.html)
 
 # Query
 
@@ -182,10 +191,14 @@ Below is a table of defined error codes. Values from `0` to `4095` are reserved 
 
  Applications may define their own error codes starting from `4096` to avoid conflicts with REPE's high-level errors.
 
+### Error Action
+
+When an error is generated, the endpoint must send a message back with the `action` field set to `response`, the `id` field set to the `id` of the original request, the `ec` field set to the appropriate error code, and the body (if present) containing a UTF-8 error message.
+
 # Response
 
-An RPC response is a REPE message where the body contains the result of calling the function (call action) or the value (get action).
+An RPC response is an REPE message where the body contains the result of calling the function (call action) or the value (get action).
 
-RPC responses from the server should typically return an action with a pure `notify`. This indicates that the server is not expecting anything back from the client.
+RPC responses from the server should typically return an action of `response`.
 
 It is up to the discretion of implementors whether the response returns the original query. Data can be saved by not returning the requested query, but it may be useful for debugging errors.
