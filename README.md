@@ -98,19 +98,18 @@ The `Action` enumeration defines the operation to perform. Some actions can be c
 - `call` - Calls a function at the query location with the body as input. The `body_length` may be zero.
 - `response` - Used to explicitly indicate that the body contains a response from a `get`, `set`, or `call` request. A `response` action is like a `notify` and doesn't expect anything back from the client.
 
-`get`, `set`, `call`, and `response` are mutually exclusive.
+A valid `action` field **must** have exactly one of the primary action bits—`get`, `set`, `call`, or `response`—set. The `notify` bit is a modifier and may only be combined with the `set` or `call` actions. All other combinations are invalid and must be rejected with an `Invalid header` error.
 
-**Valid Standalone Actions**
+| Action          | Value | Description                                          |
+| --------------- | ----- | ---------------------------------------------------- |
+| `get`           | `2`   | Request a value. Expects a `response`.               |
+| `set`           | `4`   | Set a value. Expects a `response` by default.        |
+| `call`          | `8`   | Call a function. Expects a `response` by default.    |
+| `response`      | `16`  | A response message. Does not expect a response back. |
+| `notify | set`  | `5`   | Set a value but do not send a `response`.            |
+| `notify | call` | `9`   | Call a function but do not send a `response`.        |
 
-`get`, `set`, `call`, and `response`
-
-**Valid Combined Actions**
-
-`notify | set`: Indicates a notification to set a value without expecting a response.
-
-`notify | call`: Indicates a notification to call a function without expecting a response.
-
-All other combinations should result in an error  (`get | call`, `get | notify`, etc.) .
+Any other value for the `action` field should be considered an error (`get | call`, `get | notify`, etc.) .
 
 ### ID
 
@@ -139,6 +138,7 @@ While the protocol supports strings of extremely long length, implementers shoul
 **Reserved Query Formats**
 
 ```
+0 - Raw Binary
 1 - JSON Pointer Syntax
 ```
 
@@ -147,6 +147,8 @@ While the protocol supports strings of extremely long length, implementers shoul
 `body_format` is a two byte unsigned integer that may denote the format for the body. Value from [0, 4095] are reserved for the REPE specification. Custom formats should use values above 4095.
 
 **Reserved Body Formats**
+
+0 - Raw Binary
 
 1 - [BEVE](https://github.com/beve-org/beve)
 
