@@ -4,7 +4,7 @@
 >
 > This specification is under ACTIVE DEVELOPMENT and should be considered UNSTABLE.
 
-REPE is a fast and simple RPC/Database protocol that can package any data format and any query specification. It defines a binary header which can be invoked with any query specification. The payload (body) can be any format, JSON, BEVE, raw binary, text, etc.
+REPE is a fast and simple RPC protocol that can package any data format and any query specification. It defines a binary header which can be invoked with any query specification. The payload (body) can be any format, JSON, BEVE, raw binary, text, etc.
 
 - High performance
 - Easy to use
@@ -43,7 +43,7 @@ struct header {
   uint16_t spec{0x1507}; // (5383) Magic two bytes to denote the REPE specification
   uint8_t version = 1; // REPE version
   uint8_t notify{}; // 1 (true) for no response from server
-  uint32_t reserved{}; // Must be zero
+  uint32_t reserved{}; // Must be zero, receivers must ignore this field
   //
   uint64_t id{}; // Identifier
   //
@@ -81,7 +81,7 @@ While future versions may introduce backward-compatible changes, compatibility i
 
 ### Notify
 
-`notify` is either 0 or 1. A value of 1 indicates that no response is needed.
+`notify` is either 0 or 1. A value of 1 indicates that no response is needed. Errors on `notify` requests are intentionally not reported to the client
 
 ### ID
 
@@ -126,6 +126,8 @@ While the protocol supports strings of extremely long length, implementers shoul
 
 2 - [JSON](https://www.json.org/json-en.html)
 
+3 - UTF-8
+
 # Query
 
 The query may use any specification chosen by implementors.
@@ -140,7 +142,7 @@ When invoking a function or setting a value, the body contains the input paramet
 
 ## Error
 
-An error requires a `uint32_t` error code and a string message. The error code is stored in the header. The body is the error message as a UTF-8 string, where the `body_length` in the header indicates the length of the error message.
+An error requires a `uint32_t` error code and a string message. The error code is stored in the header. The body is the error message as a UTF-8 string, where the `body_length` in the header indicates the length of the error message. The `body_format` should specify UTF-8.
 
 The `body_length` for an error may be zero, which indicates that there is no error message and only the error code provided.
 
@@ -167,6 +169,6 @@ When an error is generated, the endpoint must send a message back with the `id` 
 
 # Response
 
-An RPC response is an REPE message where the body contains the result
+An RPC response is an REPE message where the body contains the result. The `id` for the response must match the `id` from the original message.
 
 It is up to the discretion of implementors whether the response returns the original query. Data can be saved by not returning the requested query, but it may be useful for debugging errors.
