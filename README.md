@@ -16,10 +16,6 @@ REPE is a fast and simple RPC/Database protocol that can package any data format
 
 The endianness must be `little endian`, selected for optimal performance on modern systems.
 
-## Strings
-
-All strings referred to in this specification must be UTF-8 compliant.
-
 # Request/Response (Message)
 
 Requests and responses use the exact same data layout. There is no distinction between them. The format contains a header, query, and body.
