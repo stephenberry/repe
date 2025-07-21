@@ -83,11 +83,13 @@ The REPE `spec` value of `0x1507` is used to disambiguate REPE from other specif
 
 ### Version
 
-The `version` must be a `uint8_t`.
+The `version` is an 8-bit unsigned integer (`uint8_t`) that specifies the version of the REPE protocol being used.
 
-> The latest version is `1`
+- The latest version is **1**.
 
-This version of REPE does not require backwards compatibility, but errors must be returned for mismatching versions.
+Servers and clients **must** validate the version number upon receiving a message. If the version is not supported, the endpoint **must** reject the message and respond with a `Version mismatch` error (`ec = 1`). This ensures that endpoints do not attempt to parse messages using incompatible rules.
+
+While future versions may introduce backward-compatible changes, compatibility is not guaranteed. Robust implementations must always check the version and handle mismatches.
 
 ### Action
 
