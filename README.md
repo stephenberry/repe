@@ -12,12 +12,6 @@ REPE is a fast and simple RPC/Database protocol that can package any data format
 
 > The motivation is to provide a standard way to build RPC interfaces and databases with flexible formats and query specifications.
 
-# Version 1
-
-> [!IMPORTANT]
->
-> This Version 1 of the specification is a complete rework in order to support any data format. It also embeds the message size and uses a packed binary header for better efficiency and smaller messages.
-
 ## Endianness
 
 The endianness must be `little endian`, selected for optimal performance on modern systems.
