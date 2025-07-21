@@ -93,18 +93,18 @@ While future versions may introduce backward-compatible changes, compatibility i
 
 ### Action
 
-The `Action` enumeration defines the operation to perform. Multiple actions can be combined using bitwise OR, but certain combinations may have specific interpretations.
+The `Action` enumeration defines the operation to perform. Some actions can be combined using bitwise OR and have specific interpretations.
 
 - `notify` - Denotes that no response should be sent. May be combined with `set` or `call` actions.
 - `get` - Reads a value denoted by the query. The `body_length` must be zero.
-- `set` - Writes the body to the value denoted by the query.
-- `call` - Calls a function at the query location with the body as input.
+- `set` - Writes the body to the value denoted by the query. The `body_length` must not be zero.
+- `call` - Calls a function at the query location with the body as input. The `body_length` may be zero.
 
 `notify | set`: Indicates a notification to set a value without expecting a response.
 
- `notify | call`: Indicates a notification to call a function without expecting a response.
+`notify | call`: Indicates a notification to call a function without expecting a response.
 
-Invalid combinations (e.g., `get | call`) should result in an error.
+All other combinations (e.g., `get | call`) should result in an error.
 
 ### ID
 
@@ -146,10 +146,6 @@ While the protocol supports strings of extremely long length, implementers shoul
 1 - BEVE
 2 - JSON
 ```
-
-### Error Code
-
-A `uint32_t` error code.
 
 # Query
 
