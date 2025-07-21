@@ -4,7 +4,7 @@
 >
 > This specification is under ACTIVE DEVELOPMENT and should be considered UNSTABLE.
 
-REPE is a fast and simple RPC/Database protocol that can package any data format and any query specification. It defines a binary header that provides a simple action protocol, which can be invoked with any query specification. The payload (body) can be any format, JSON, BEVE, raw binary, text, etc.
+REPE is a fast and simple RPC/Database protocol that can package any data format and any query specification. It defines a binary header which can be invoked with any query specification. The payload (body) can be any format, JSON, BEVE, raw binary, text, etc.
 
 - High performance
 - Easy to use
@@ -36,23 +36,14 @@ struct message {
 The header information that describes how to handle the request and payload (query & body).
 
 ```c++
-enum struct Action : uint32_t
-{
-  notify = 1 << 0, // If this message does not require a response
-  get = 1 << 1, // Read a value
-  set = 1 << 2, // Write a value
-  call = 1 << 3, // Call a function with the body as input
-  response = 1 << 4 // Indicates that the body contains the response
-};
-
 // C++ pseudocode representing layout
 struct header {
   uint64_t length{}; // Total length of [header, query, body]
   //
   uint16_t spec{0x1507}; // (5383) Magic two bytes to denote the REPE specification
   uint8_t version = 1; // REPE version
-  uint8_t reserved{}; // Must be zero
-  Action action{}; // Action to take, multiple actions may be bit-packed together
+  uint8_t notify{}; // 1 (true) for no response from server
+  uint32_t reserved{}; // Must be zero
   //
   uint64_t id{}; // Identifier
   //
@@ -76,7 +67,7 @@ The `length` must equal `48 + query_length + body_length`
 
 ### Spec
 
-The REPE `spec` value of `0x1507` is used to disambiguate REPE from other specifications that may use a similar layout. In this way manner branching may be performed on the first 8 bytes (length + spec).
+The REPE `spec` value of `0x1507` is used to disambiguate REPE from other specifications that may use a similar layout. In this way, branching may be performed on the first 8 bytes (length + spec).
 
 ### Version
 
@@ -88,28 +79,9 @@ Servers and clients **must** validate the version number upon receiving a messag
 
 While future versions may introduce backward-compatible changes, compatibility is not guaranteed. Robust implementations must always check the version and handle mismatches.
 
-### Action
+### Notify
 
-The `Action` enumeration defines the operation to perform. Some actions can be combined using bitwise OR and have specific interpretations.
-
-- `notify` - Denotes that no response should be sent. May be combined with `set` or `call` actions.
-- `get` - Reads a value denoted by the query. The `body_length` must be zero.
-- `set` - Writes the body to the value denoted by the query. The `body_length` must not be zero.
-- `call` - Calls a function at the query location with the body as input. The `body_length` may be zero.
-- `response` - Used to explicitly indicate that the body contains a response from a `get`, `set`, or `call` request. A `response` action is like a `notify` and doesn't expect anything back from the client.
-
-A valid `action` field **must** have exactly one of the primary action bits—`get`, `set`, `call`, or `response`—set. The `notify` bit is a modifier and may only be combined with the `set` or `call` actions. All other combinations are invalid and must be rejected with an `Invalid header` error.
-
-| Action          | Value | Description                                          |
-| --------------- | ----- | ---------------------------------------------------- |
-| `get`           | `2`   | Request a value. Expects a `response`.               |
-| `set`           | `4`   | Set a value. Expects a `response` by default.        |
-| `call`          | `8`   | Call a function. Expects a `response` by default.    |
-| `response`      | `16`  | A response message. Does not expect a response back. |
-| `notify | set`  | `5`   | Set a value but do not send a `response`.            |
-| `notify | call` | `9`   | Call a function but do not send a `response`.        |
-
-Any other value for the `action` field should be considered an error (`get | call`, `get | notify`, etc.) .
+`notify` is either 0 or 1. A value of 1 indicates that no response is needed.
 
 ### ID
 
@@ -125,7 +97,7 @@ The `id` field may be used as a unique `uint64_t` identifier for each request. R
 
 `body_length` indicates the length in bytes of the body.
 
-If `body_length` is set to zero, the body section is omitted. Implementers must ensure that actions requiring a body (e.g., `set`, `call`) are not used with `body_length` zero, and respond with an appropriate error if such a mismatch occurs.
+If `body_length` is set to zero, the body section is omitted.
 
 ### String Length Constraints
 
@@ -191,12 +163,10 @@ Below is a table of defined error codes. Values from `0` to `4095` are reserved 
 
 ### Error Action
 
-When an error is generated, the endpoint must send a message back with the `action` field set to `response`, the `id` field set to the `id` of the original request, the `ec` field set to the appropriate error code, and the body (if present) containing a UTF-8 error message.
+When an error is generated, the endpoint must send a message back with the `id` field set to the `id` of the original request, the `ec` field set to the appropriate error code, and the body (if present) containing a UTF-8 error message.
 
 # Response
 
 An RPC response is an REPE message where the body contains the result of calling the function (call action) or the value (get action).
-
-RPC responses from the server should typically return an action of `response`.
 
 It is up to the discretion of implementors whether the response returns the original query. Data can be saved by not returning the requested query, but it may be useful for debugging errors.
