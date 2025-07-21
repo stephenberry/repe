@@ -171,6 +171,8 @@ For a `call` action, the body contains the input parameters.
 
 An error requires a `uint32_t` error code and a string message. The error code is stored in the header. The body is the error message as a UTF-8 string, where the `body_length` in the header indicates the length of the error message.
 
+The `body_length` for an error may be zero, which indicates that there is no error message and only the error code provided.
+
 Below is a table of defined error codes. Values from `0` to `4095` are reserved for REPE high-level error codes. Codes `4096` and above are available for application-specific errors.
 
 | code | message          | meaning                                                      |
