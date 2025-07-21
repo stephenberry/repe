@@ -161,7 +161,7 @@ Below is a table of defined error codes. Values from `0` to `4095` are reserved 
 
  Applications may define their own error codes starting from `4096` to avoid conflicts with REPE's high-level errors.
 
-### Error Action
+### On Error
 
 When an error is generated, the endpoint must send a message back with the `id` field set to the `id` of the original request, the `ec` field set to the appropriate error code, and the body (if present) containing a UTF-8 error message.
 
