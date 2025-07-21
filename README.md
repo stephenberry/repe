@@ -136,7 +136,7 @@ The body can contain data in any format, including JSON, BEVE, raw binary, or te
 
 The body may contain a REPE error_message if the error code is in an error state. If the `body_length` is set to zero, then no body is provided.
 
-For a `call` action, the body contains the input parameters.
+When invoking a function or setting a value, the body contains the input parameters.
 
 ## Error
 
@@ -167,6 +167,6 @@ When an error is generated, the endpoint must send a message back with the `id` 
 
 # Response
 
-An RPC response is an REPE message where the body contains the result of calling the function (call action) or the value (get action).
+An RPC response is an REPE message where the body contains the result
 
 It is up to the discretion of implementors whether the response returns the original query. Data can be saved by not returning the requested query, but it may be useful for debugging errors.
