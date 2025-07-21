@@ -73,15 +73,15 @@ struct header {
   //
   uint16_t query_format{};
   uint16_t body_format{};
-  error_code ec{};
+  uint32_t ec{}; // error code
 };
 ```
 
-The header must be exactly 48 bytes allocated in the layout shown above. All fields in the header must be aligned to their natural boundaries (e.g., `uint64_t` on 8-byte boundaries). No padding bytes are included whatsoever.
+The header must be exactly 48 bytes with fields following the exact order shown above. No padding bytes are allowed.
 
 ### Length
 
-The `length` field represents the total length of `[header, query, body]`. A value of `-1` (wrapped to the largest `uint64_t`) indicates that the length is unspecified. In such cases, the message termination must be determined by alternative means.
+The `length` field represents the total length of `[header, query, body]`. The length must always be provided for a valid message.
 
 ### Spec
 
@@ -118,11 +118,11 @@ The `id` field may be used as a unique `uint64_t` identifier for each request. R
 
 ### Query Length
 
-`query_length` indicates the length in bytes of the query. A value of `-1` (wraps to largest uint64_t) denotes that no length is provided and the message termination will be determined some other way, such as the end of a valid parse.
+`query_length` indicates the length in bytes of the query. A value of `-1` (wraps to largest uint64_t) denotes that no length was provided and the message is in an invalid state.
 
 ### Body Length
 
-`body_length` indicates the length in bytes of the body. A value of `-1` (wraps to largest uint64_t) denotes that no length is provided and the message termination will be determined some other way, such as the end of a valid parse.
+`body_length` indicates the length in bytes of the body. A value of `-1` (wraps to largest uint64_t) denotes that no length was provided and the message is in an invalid state.
 
 If `body_length` is set to zero, the body section is omitted. Implementers must ensure that actions requiring a body (e.g., `set`, `call`) are not used with `body_length` zero, and respond with an appropriate error if such a mismatch occurs.
 
@@ -142,7 +142,7 @@ While the protocol supports strings of extremely long length, implementers shoul
 
 ### Body Format
 
-`query_format` is a two byte unsigned integer that may denote the format for the body.
+`body_format` is a two byte unsigned integer that may denote the format for the body.
 
 **Reserved Body Formats**
 
@@ -169,16 +169,7 @@ For a `call` action, the body contains the input parameters.
 
 ## Error
 
-An error requires a `uint32_t` error code and a string message.
-
-```c++
-// C++ pseudocode representing layout
-struct error_message {
-  uint32_t code = 0; // 0 is OK (no error)
-  uint32_t message_length{};
-  const char* message{};
-};
-```
+An error requires a `uint32_t` error code and a string message. The error code is stored in the header. The body is the error message as a UTF-8 string, where the `body_length` in the header indicates the length of the error message.
 
 Below is a table of defined error codes. Values from `0` to `4095` are reserved for REPE high-level error codes. Codes `4096` and above are available for application-specific errors.
 
