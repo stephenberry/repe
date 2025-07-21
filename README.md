@@ -192,6 +192,8 @@ Below is a table of defined error codes. Values from `0` to `4095` are reserved 
 
 # Response
 
+An RPC response is a REPE message where the body contains the result of calling the function (call action) or the value (get action).
+
 RPC responses from the server should typically return an action with a pure `notify`. This indicates that the server is not expecting anything back from the client.
 
 It is up to the discretion of implementors whether the response returns the original query. Data can be saved by not returning the requested query, but it may be useful for debugging errors.
